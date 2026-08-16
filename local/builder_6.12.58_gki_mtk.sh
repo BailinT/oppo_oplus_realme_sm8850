@@ -441,7 +441,9 @@ cd common
 COMMON_REAL_PATH=$(pwd -P)
 ROOT_REAL_PATH=$(dirname "$COMMON_REAL_PATH")
 KCFLAGS+=" -fdebug-prefix-map=$ROOT_REAL_PATH=."
-KCFLAGS+=" -fmacro-prefix-map=$ROOT_REAL_PATH=."
+# 6.12.58 的 rust 构建路径会把这些 KCFLAGS 传给 clang，-fmacro-prefix-map 被判定为
+# 未使用参数且 -Werror 直接报错；保留 debug/file 两个 map 维持 DWARF 路径重映射（CRC 稳定）
+# KCFLAGS+=" -fmacro-prefix-map=$ROOT_REAL_PATH=."
 KCFLAGS+=" -ffile-prefix-map=$ROOT_REAL_PATH=."
 export KCFLAGS
 source "./_setup_env.sh" 2>/dev/null || true
