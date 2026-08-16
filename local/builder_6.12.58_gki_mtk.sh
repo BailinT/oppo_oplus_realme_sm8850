@@ -258,7 +258,7 @@ echo "CONFIG_HEADERS_INSTALL=n" >> "$DEFCONFIG_FILE"
 # 应用 CVE_2026_43499 修复补丁
 cd common
 wget https://github.com/cctv18/oppo_oplus_realme_sm8850/raw/refs/heads/main/other_patch/cve-2026-43499-rtmutex-6.12.patch
-patch -p1 -F 3 < cve-2026-43499-rtmutex-6.12.patch
+patch -N -p1 -F 3 < cve-2026-43499-rtmutex-6.12.patch || echo "CVE-2026-43499 已在 6.12.58 上游修复，跳过"
 cd ..
 
 # 6.12内核Rust配置
