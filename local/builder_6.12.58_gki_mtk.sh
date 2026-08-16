@@ -238,6 +238,12 @@ echo "CONFIG_TMPFS_XATTR=y" >> "$DEFCONFIG_FILE"
 echo "CONFIG_TMPFS_POSIX_ACL=y" >> "$DEFCONFIG_FILE"
 # 天玑机型 WiFi：小米/OPPO mt6993 等天玑机原厂将 cfg80211 编入内核，vendor 分区无 cfg80211.ko，
 # GKI 内核必须内置 cfg80211，否则 wlan_drv 模块 Unknown symbol、WiFi 丢失
+# 注意：CFG80211 的 Kconfig 依赖为 RFKILL || !RFKILL，RFKILL=m 会把 y 钳制成 m，必须同时内置 RFKILL
+if grep -q '^CONFIG_RFKILL=m' "$DEFCONFIG_FILE"; then
+  sed -i 's/^CONFIG_RFKILL=m/CONFIG_RFKILL=y/' "$DEFCONFIG_FILE"
+else
+  echo "CONFIG_RFKILL=y" >> "$DEFCONFIG_FILE"
+fi
 echo "CONFIG_CFG80211=y" >> "$DEFCONFIG_FILE"
 
 # 开启O2编译优化配置

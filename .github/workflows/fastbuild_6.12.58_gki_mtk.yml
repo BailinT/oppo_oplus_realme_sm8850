@@ -366,7 +366,13 @@ jobs:
           echo "CONFIG_TMPFS_XATTR=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_TMPFS_POSIX_ACL=y" >> ./common/arch/arm64/configs/gki_defconfig
           # 天玑机型 WiFi：小米/OPPO mt6993 等天玑机原厂将 cfg80211 编入内核，vendor 分区无 cfg80211.ko，
-          # GKI 内核必须内置 cfg80211，否则 wlan_drv 模块 Unknown symbol、WiFi 丢失（纯 make 构建，无 kleaf trim 问题）
+          # GKI 内核必须内置 cfg80211，否则 wlan_drv 模块 Unknown symbol、WiFi 丢失
+          # 注意：CFG80211 的 Kconfig 依赖为 RFKILL || !RFKILL，RFKILL=m 会把 y 钳制成 m，必须同时内置 RFKILL
+          if grep -q '^CONFIG_RFKILL=m' ./common/arch/arm64/configs/gki_defconfig; then
+          sed -i 's/^CONFIG_RFKILL=m/CONFIG_RFKILL=y/' ./common/arch/arm64/configs/gki_defconfig
+          else
+          echo "CONFIG_RFKILL=y" >> ./common/arch/arm64/configs/gki_defconfig
+          fi
           echo "CONFIG_CFG80211=y" >> ./common/arch/arm64/configs/gki_defconfig
           if [[ "${{ github.event.inputs.lz4kd_enable }}" == "true" ]]; then
             echo "CONFIG_ZSMALLOC=y" >> ./common/arch/arm64/configs/gki_defconfig
