@@ -91,10 +91,10 @@ mkdir kernel_workspace
 cd kernel_workspace
 
 echo "正在克隆源码仓库..."
-aria2c -s16 -x16 -k1M https://github.com/aosp-mirror/kernel_common/archive/refs/heads/android16-6.12-2025-12.zip -o common.zip &&
-unzip -q common.zip &&
-mv "kernel_common-android16-6.12-2025-12" common &&
-rm -rf common.zip &
+curl -L --retry 3 --retry-delay 5 -o common.tar.gz https://android.googlesource.com/kernel/common/+archive/refs/heads/android16-6.12-2025-12.tar.gz &&
+mkdir common &&
+tar -xzf common.tar.gz -C common &&
+rm -rf common.tar.gz &
 
 echo "正在克隆llvm-clang19工具链..." &&
 mkdir -p clang19 &&
@@ -114,7 +114,11 @@ unzip -q build-tools.zip &&
 rm -rf build-tools.zip &
 
 wait
-echo "所有源码及llvm-clang19工具链初始化完成！"
+echo "所有源码及llvm-clang19工具链初始化完成！
+if [ ! -f common/scripts/setlocalversion ]; then
+  echo "错误：源码初始化失败，common/scripts/setlocalversion 不存在（下载/解压被截断）"
+  exit 1
+fi"
 echo ">>> 初始化仓库完成!"
 
 for f in common/scripts/setlocalversion; do
