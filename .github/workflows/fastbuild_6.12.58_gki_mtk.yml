@@ -308,6 +308,21 @@ jobs:
             cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
             cd ./common
             patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
+
+            # 6.12.58 的 fs/exec.c 新增了 dma-buf.h，旧补丁的 include hunk 会失配，
+            # 但调用点仍会打入，最终导致 susfs_is_current_proc_umounted 未声明。
+            if grep -q 'susfs_is_current_proc_umounted' ./fs/exec.c && ! grep -qF '#include <linux/susfs_def.h>' ./fs/exec.c; then
+              if grep -qF '#include <linux/dma-buf.h>' ./fs/exec.c; then
+                sed -i '/#include <linux\/dma-buf.h>/a #ifdef CONFIG_KSU_SUSFS\n#include <linux\/susfs_def.h>\n#endif' ./fs/exec.c
+              else
+                sed -i '/#include <linux\/ksm.h>/a #ifdef CONFIG_KSU_SUSFS\n#include <linux\/susfs_def.h>\n#endif' ./fs/exec.c
+              fi
+              echo "已修复 6.12.58 fs/exec.c 缺少 susfs_def.h 问题"
+            fi
+            if grep -q 'susfs_is_current_proc_umounted' ./fs/exec.c && ! grep -qF '#include <linux/susfs_def.h>' ./fs/exec.c; then
+              echo "::error::fs/exec.c 使用了 SUSFS 接口，但 susfs_def.h 仍未引入"
+              exit 1
+            fi
             cd ..
           else
             echo "已选择无内置KernelSU模式，跳过susfs配置..."
@@ -682,7 +697,18 @@ jobs:
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="clang" LD="ld.lld" OBJCOPY="llvm-objcopy" O=out gki_defconfig &&
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="clang" LD="ld.lld" OBJCOPY="llvm-objcopy" O=out gki_defconfig
+          if ! grep -q '^# CONFIG_MODVERSIONS is not set$' out/.config; then
+            echo "::error::最终内核配置没有关闭 CONFIG_MODVERSIONS"
+            grep -E '^CONFIG_MODVERSIONS=|^# CONFIG_MODVERSIONS' out/.config || true
+            exit 1
+          fi
+          if grep -q '^CONFIG_CFG80211=y$' out/.config; then
+            echo "::error::最终内核配置仍将 AOSP cfg80211 内置进 Image"
+            exit 1
+          fi
+          echo "WiFi 模块兼容配置："
+          grep -E '^CONFIG_CFG80211=|^# CONFIG_CFG80211|^CONFIG_MODVERSIONS=|^# CONFIG_MODVERSIONS|^CONFIG_MODULE_SIG_FORCE=|^# CONFIG_MODULE_SIG_FORCE' out/.config || true
           export CC="$(pwd)/cc-wrapper" && export LD="$(pwd)/ld-wrapper" &&
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" OBJCOPY="llvm-objcopy" O=out Image
           
@@ -860,7 +886,7 @@ jobs:
           - 内核版本号: ${{ env.FULL_VERSION }}
           - 编译时间: ${{ env.TIME_FORM }}
           - 机型：小米/欧加真天玑通用（mt6993，如 Redmi K Pad 2）${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }} 内核（基于 AOSP 官方 android16-6.12-2025-12 源码分支）
-          - 内置cfg80211：是（天玑机型 WiFi 必需）
+          - 内置cfg80211：否（使用 vendor cfg80211.ko；关闭 MODVERSIONS 测试小米/MTK 模块兼容）
           - KSU分支：${{ env.KSU_TYPENAME }}
           - susfs支持：${{ github.event.inputs.susfs_enable }}
           - KPM支持 ：${{ github.event.inputs.kpm_enable }}

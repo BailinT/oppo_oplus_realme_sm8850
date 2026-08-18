@@ -174,6 +174,21 @@ if [[ "$APPLY_SUSFS" == [yY] ]]; then
   cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
   cd ./common
   patch -p1 < 50_add_susfs_in_gki-android16-6.12.patch || true
+
+  # 6.12.58 的 fs/exec.c 新增了 dma-buf.h，旧补丁的 include hunk 会失配，
+  # 但调用点仍会打入，最终导致 susfs_is_current_proc_umounted 未声明。
+  if grep -q 'susfs_is_current_proc_umounted' ./fs/exec.c && ! grep -qF '#include <linux/susfs_def.h>' ./fs/exec.c; then
+    if grep -qF '#include <linux/dma-buf.h>' ./fs/exec.c; then
+      sed -i '/#include <linux\/dma-buf.h>/a #ifdef CONFIG_KSU_SUSFS\n#include <linux\/susfs_def.h>\n#endif' ./fs/exec.c
+    else
+      sed -i '/#include <linux\/ksm.h>/a #ifdef CONFIG_KSU_SUSFS\n#include <linux\/susfs_def.h>\n#endif' ./fs/exec.c
+    fi
+    echo ">>> 已修复 6.12.58 fs/exec.c 缺少 susfs_def.h 问题"
+  fi
+  if grep -q 'susfs_is_current_proc_umounted' ./fs/exec.c && ! grep -qF '#include <linux/susfs_def.h>' ./fs/exec.c; then
+    echo "错误：fs/exec.c 使用了 SUSFS 接口，但 susfs_def.h 仍未引入"
+    exit 1
+  fi
 else
   echo ">>> 未开启susfs，跳过susfs补丁配置..."
 fi
@@ -457,7 +472,32 @@ make -j$(nproc --all) \
     RUSTC="rustc" \
     OBJCOPY="llvm-objcopy" \
     O=out \
-    gki_defconfig Image 2>&1 | tee $WORKDIR/build.log
+    gki_defconfig
+
+if ! grep -q '^# CONFIG_MODVERSIONS is not set$' out/.config; then
+  echo "错误：最终内核配置没有关闭 CONFIG_MODVERSIONS"
+  grep -E '^CONFIG_MODVERSIONS=|^# CONFIG_MODVERSIONS' out/.config || true
+  exit 1
+fi
+if grep -q '^CONFIG_CFG80211=y$' out/.config; then
+  echo "错误：最终内核配置仍将 AOSP cfg80211 内置进 Image"
+  exit 1
+fi
+echo ">>> WiFi 模块兼容配置："
+grep -E '^CONFIG_CFG80211=|^# CONFIG_CFG80211|^CONFIG_MODVERSIONS=|^# CONFIG_MODVERSIONS|^CONFIG_MODULE_SIG_FORCE=|^# CONFIG_MODULE_SIG_FORCE' out/.config || true
+
+make -j$(nproc --all) \
+    LLVM=1 \
+    ARCH=arm64 \
+    CROSS_COMPILE=aarch64-linux-gnu- \
+    CC="$CLANG_DIR/clang" \
+    HOSTCC="$CLANG_DIR/clang" \
+    LD=ld.lld \
+    HOSTLD=ld.lld \
+    RUSTC="rustc" \
+    OBJCOPY="llvm-objcopy" \
+    O=out \
+    Image 2>&1 | tee "$WORKDIR/build.log"
 echo ">>> 内核编译成功！"
 
 # ===== 选择使用 patch_linux (KPM补丁)=====
