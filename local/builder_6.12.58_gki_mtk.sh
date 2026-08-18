@@ -240,15 +240,12 @@ fi
 #添加对 Mountify (backslashxx/mountify) 模块的支持
 echo "CONFIG_TMPFS_XATTR=y" >> "$DEFCONFIG_FILE"
 echo "CONFIG_TMPFS_POSIX_ACL=y" >> "$DEFCONFIG_FILE"
-# 天玑机型 WiFi：小米/OPPO mt6993 等天玑机原厂将 cfg80211 编入内核，vendor 分区无 cfg80211.ko，
-# GKI 内核必须内置 cfg80211，否则 wlan_drv 模块 Unknown symbol、WiFi 丢失
-# 注意：CFG80211 的 Kconfig 依赖为 RFKILL || !RFKILL，RFKILL=m 会把 y 钳制成 m，必须同时内置 RFKILL
-if grep -q '^CONFIG_RFKILL=m' "$DEFCONFIG_FILE"; then
-  sed -i 's/^CONFIG_RFKILL=m/CONFIG_RFKILL=y/' "$DEFCONFIG_FILE"
-else
-  echo "CONFIG_RFKILL=y" >> "$DEFCONFIG_FILE"
-fi
-echo "CONFIG_CFG80211=y" >> "$DEFCONFIG_FILE"
+# 天玑机型 WiFi：小米/OPPO mt6993 天玑机原厂改过 cfg80211 ABI（cfg80211.h 结构体差异），
+# GKI 内核内置的 AOSP cfg80211 的符号 CRC 与 vendor wlan_drv 不匹配（disagrees about symbol version）。
+# 解法：不内置 cfg80211，关掉 CONFIG_MODVERSIONS，让 vendor 自己的 cfg80211.ko + wlan_drv.ko
+# 在不检查 CRC 的情况下加载（两者都是小米编译，互相匹配）。
+echo "CONFIG_MODVERSIONS=n" >> "$DEFCONFIG_FILE"
+echo "# CONFIG_MODULE_SIG_FORCE is not set" >> "$DEFCONFIG_FILE"
 
 # 开启O2编译优化配置
 echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> "$DEFCONFIG_FILE"
