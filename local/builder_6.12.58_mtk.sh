@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # ===== 设置自定义参数 =====
-echo "===== 欧加真MT6993通用6.12.58 A16 OKI内核本地编译脚本 By Coolapk@cctv18 ====="
+echo "===== 欧加真MT6993通用6.12.58 A16 OKI内核本地编译脚本 By Coolapk@cctv18 | By 抖音王德发刷机 ====="
 echo ">>> 读取用户配置..."
 MANIFEST=${MANIFEST:-oppo+oplus+realme}
 read -p "请输入自定义内核后缀（默认：android16-5-ge7f2a9832757-ab13799791-4k）: " CUSTOM_SUFFIX
@@ -90,30 +90,37 @@ rm -rf kernel_workspace
 mkdir kernel_workspace
 cd kernel_workspace
 
+download_pids=()
 echo "正在克隆源码仓库..."
-aria2c -s16 -x16 -k1M ttps://github.com/cctv18/android_kernel_oneplus_mt6993/archive/refs/heads/oneplus/mt6993_b_16.0_ace_6_ultra.zip -o common.zip && 
+aria2c -s16 -x16 -k1M https://github.com/cctv18/android_kernel_oneplus_mt6993/archive/refs/heads/oneplus/mt6993_b_16.0_ace_6_ultra.zip -o common.zip &&
 unzip -q common.zip && 
 mv "android_kernel_oneplus_mt6993-oneplus-mt6993_b_16.0_ace_6_ultra" common &&
 rm -rf common.zip &
+download_pids+=("$!")
 
 echo "正在克隆llvm-clang19工具链..." &&
 mkdir -p clang19 &&
 aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang19-r536225/clang-r536225.zip -o clang.zip &&
 unzip -q clang.zip -d clang19 &&
 rm -rf clang.zip &
+download_pids+=("$!")
 
 echo "正在克隆Rust 1.82.0工具链..." &&
 mkdir -p rust &&
 aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang19-r536225/rust.zip -o rust.zip &&
 unzip -q rust.zip -d rust &&
 rm -rf rust.zip &
+download_pids+=("$!")
 
 echo "正在克隆构建工具..." &&
 aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang19-r536225/build-tools.zip -o build-tools.zip &&
 unzip -q build-tools.zip &&
 rm -rf build-tools.zip &
+download_pids+=("$!")
 
-wait
+for pid in "${download_pids[@]}"; do
+  wait "$pid" || { echo "下载或解压失败，停止构建" >&2; exit 1; }
+done
 echo "所有源码及llvm-clang19工具链初始化完成！"
 echo ">>> 初始化仓库完成!"
 
@@ -466,7 +473,7 @@ fi
 # ===== 克隆并打包 AnyKernel3 =====
 cd "$WORKDIR/kernel_workspace"
 echo ">>> 克隆 AnyKernel3 项目..."
-git clone https://github.com/cctv18/AnyKernel3 --depth=1
+git clone https://github.com/BailinT/AnyKernel3 --depth=1
 
 echo ">>> 清理 AnyKernel3 Git 信息..."
 rm -rf ./AnyKernel3/.git
